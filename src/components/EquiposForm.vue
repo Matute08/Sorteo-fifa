@@ -16,12 +16,18 @@
 </template>
 
 <script>
+import { useDatosStore } from '../stores/datos'
+import { storeToRefs } from 'pinia'
 export default {
     name: "EquiposForm",
+    setup() {
+        const datosStore = useDatosStore();
+        const { equipos } = storeToRefs(datosStore);
+        return { datosStore, equipos };
+    },
     data() {
         return {
-            nuevoEquipo: "",
-            equipos: JSON.parse(localStorage.getItem('equipos')) || [],
+            nuevoEquipo: ""
         };
     },
     methods: {
@@ -29,18 +35,14 @@ export default {
             const nombre = this.nuevoEquipo.trim();
             if (nombre) {
                 this.equipos.push(nombre);
+                this.datosStore.setEquipos(this.equipos);
                 this.nuevoEquipo = "";
-                this.actualizarEstado();
             }
         },
         eliminarEquipo(index) {
             this.equipos.splice(index, 1);
-            this.actualizarEstado();
+            this.datosStore.setEquipos(this.equipos);
         },
-        actualizarEstado() {
-            localStorage.setItem('equipos', JSON.stringify(this.equipos));
-            this.$emit("updateEquipos", this.equipos); // notificamos al padre
-        }
     },
 };
 </script>

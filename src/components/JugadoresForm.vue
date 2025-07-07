@@ -16,12 +16,18 @@
 </template>
 
 <script>
+import { useDatosStore } from '../stores/datos'
+import { storeToRefs } from 'pinia'
 export default {
   name: "JugadoresForm",
+  setup() {
+    const datosStore = useDatosStore();
+    const { jugadores } = storeToRefs(datosStore);
+    return { datosStore, jugadores };
+  },
   data() {
     return {
-      nuevoJugador: "",
-      jugadores: JSON.parse(localStorage.getItem('jugadores')) || []
+      nuevoJugador: ""
     };
   },
   methods: {
@@ -29,17 +35,13 @@ export default {
       const nombre = this.nuevoJugador.trim();
       if (nombre) {
         this.jugadores.push(nombre);
+        this.datosStore.setJugadores(this.jugadores);
         this.nuevoJugador = "";
-        this.actualizarEstado();
       }
     },
     eliminarJugador(index) {
       this.jugadores.splice(index, 1);
-      this.actualizarEstado();
-    },
-    actualizarEstado() {
-      localStorage.setItem('jugadores', JSON.stringify(this.jugadores));
-      this.$emit("updateJugadores", this.jugadores); // notificamos al padre
+      this.datosStore.setJugadores(this.jugadores);
     }
   }
 };

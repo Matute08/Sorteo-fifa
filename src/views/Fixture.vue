@@ -12,6 +12,7 @@
                     <button @click="regenerarFixture" class="btn-reset">
                         🗑️ Reiniciar Fixture
                     </button>
+                    <button @click="limpiarFixture" class="btn-limpiar-fixture">Limpiar Goles 🧹</button>
 
                     <div v-for="(fecha, i) in fechas" :key="i" class="fecha">
                         <h2>Fecha {{ i + 1 }}</h2>
@@ -41,12 +42,14 @@
                                     v-model.number="partido.golesLocal"
                                     type="number"
                                     min="0"
+                                    @input="onGolesChange"
                                 />
                                 <span class="guion">-</span>
                                 <input
                                     v-model.number="partido.golesVisitante"
                                     type="number"
                                     min="0"
+                                    @input="onGolesChange"
                                 />
 
                                 <div class="equipo">
@@ -59,7 +62,6 @@
                         </div>
                     </div>
 
-                    <button @click="guardarFixture">Guardar Fixture</button>
                 </div>
             </div>
         </div>
@@ -68,14 +70,15 @@
 
 <script>
 import Swal from "sweetalert2";
+import { useFixtureStore } from '../stores/fixture'
+import { storeToRefs } from 'pinia'
 
 export default {
     name: "Fixture",
-    data() {
-        return {
-            resultado: JSON.parse(localStorage.getItem("resultado")) || [],
-            fechas: JSON.parse(localStorage.getItem("fixture")) || [],
-        };
+    setup() {
+        const fixtureStore = useFixtureStore();
+        const { fechas, resultado } = storeToRefs(fixtureStore);
+        return { fixtureStore, fechas, resultado };
     },
     methods: {
         getPartidosLibres(fecha) {
@@ -87,6 +90,11 @@ export default {
         getJugador(equipo) {
             const encontrado = this.resultado.find((r) => r.equipo === equipo);
             return encontrado?.jugador || "";
+        },
+        // --- NUEVO: Guardar automáticamente al cambiar goles ---
+        onGolesChange() {
+            this.fixtureStore.setFechas(this.fechas);
+            this.actualizarTabla && this.actualizarTabla();
         },
         generarFixture() {
             if (this.resultado.length < 2) {
@@ -101,6 +109,12 @@ export default {
             const equipos = this.resultado.map((r) => r.equipo);
             const partidos = [];
             let listaEquipos = [...equipos];
+
+            // Mezclar el array de equipos para que el fixture sea aleatorio
+            for (let i = listaEquipos.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [listaEquipos[i], listaEquipos[j]] = [listaEquipos[j], listaEquipos[i]];
+            }
 
             if (listaEquipos.length % 2 !== 0) {
                 listaEquipos.push("Libre");
@@ -134,11 +148,13 @@ export default {
                 listaEquipos.splice(1, 0, listaEquipos.pop());
             }
 
-            this.fechas = fechasGeneradas;
+            this.fixtureStore.setFechas(fechasGeneradas);
+            // Actualiza la referencia reactiva
+            this.fechas.splice(0, this.fechas.length, ...fechasGeneradas);
             this.guardarFixture(true);
         },
         guardarFixture(notify = false) {
-            localStorage.setItem("fixture", JSON.stringify(this.fechas));
+            this.fixtureStore.setFechas(this.fechas);
             if (notify) {
                 Swal.fire(
                     "✔️ Fixture generado",
@@ -156,20 +172,38 @@ export default {
         regenerarFixture() {
             Swal.fire({
                 title: "¿Estás seguro?",
-                text: "Esto eliminará el fixture actual.",
+                text: "Esto eliminará el fixture actual y lo sorteará de nuevo.",
                 icon: "warning",
                 showCancelButton: true,
-                confirmButtonText: "Sí, eliminar",
+                confirmButtonText: "Sí, volver a sortear",
                 cancelButtonText: "Cancelar",
             }).then((result) => {
                 if (result.isConfirmed) {
-                    localStorage.removeItem("fixture");
-                    this.fechas = [];
-                    this.generarFixture();
+                    this.fixtureStore.limpiarFixture();
+                    this.fechas.splice(0, this.fechas.length);
+                    // Esperar un tick para limpiar la reactividad y luego volver a sortear
+                    this.$nextTick(() => {
+                        this.generarFixture();
+                    });
                 }
             });
         },
+        limpiarFixture() {
+            // Limpia solo los goles de cada partido, pero mantiene el fixture
+            const nuevasFechas = this.fechas.map(fecha =>
+                fecha.map(partido => {
+                    if (partido.libre) return { ...partido };
+                    return {
+                        ...partido,
+                        golesLocal: null,
+                        golesVisitante: null
+                    };
+                })
+            );
+            this.fixtureStore.setFechas(nuevasFechas);
+        },
     },
+    // Ya no es necesario el watcher, Pinia y el método onGolesChange se encargan
 };
 </script>
 
@@ -180,6 +214,7 @@ export default {
   margin: 0 auto;
   padding: 10px;
   box-sizing: border-box;
+  height: 90vh;
 }
 .fixture {
     padding: 2rem;
@@ -257,5 +292,19 @@ input {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+}
+.btn-limpiar-fixture {
+    margin-bottom: 1.5rem;
+    margin-left: 18px;
+    background: #fbc02d;
+    color: #222;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+.btn-limpiar-fixture:hover {
+    background: #ffd600;
 }
 </style>
